@@ -237,4 +237,4 @@ python3 translation_benchmark.py --no-source gold.pdf ai1.odt ai2.docx \
 | `translation_evaluator.py` | Source + translation | Evaluate one translation |
 | `summary_scorer.py` | Source + summary | Score an AI summary |
 | `batch_runner.py` | Folder of files | Run any script across a whole folder |
-| `translation_benchmark.py` | Russian + gold + 2 AI translations | Compare two AI translations head-to-head |
+| `translation_benchmark.py` | Russian + "Gold" (Standard/Control) + 2 AI translations | Compare two AI translations head-to-head |
