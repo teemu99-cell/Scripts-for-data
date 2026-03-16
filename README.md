@@ -52,18 +52,31 @@ python3 compare_files.py file1.pdf file2.txt -m side-by-side
 ---
 
 ### 3. `compare_ai_content.py`
-Content-level comparison of two AI outputs — not line diffs, but *what* each AI said. Compares topic coverage, depth, and structure.
+Content-level comparison of two AI outputs — not line diffs, but *what* each AI said. Scores specificity, claim density, structure quality, and depth. Topics are auto-extracted from the actual document content rather than a hardcoded keyword list, so it works correctly regardless of domain.
 
 ```bash
 python3 compare_ai_content.py file1.txt file2.txt
 python3 compare_ai_content.py file1.docx file2.txt -o report.txt --csv out.csv -v
+python3 compare_ai_content.py file1.txt file2.txt --topics-file nato_topics.json
 ```
+
+**Scores reported:** Overall · Specificity · Claim Density · Structure Quality · Depth / Uniqueness · Contrast refs · Agreement refs
 
 | Flag | Description |
 |------|-------------|
 | `-o FILE` | Save report to file |
-| `--csv FILE` | Export topic matrix to CSV |
-| `-v` | Show key sentences per shared topic |
+| `--csv FILE` | Export topic matrix and scores to CSV |
+| `-v` | Show detail breakdown and key sentences per shared topic |
+| `--topics-file FILE` | JSON file with custom topic taxonomy for domain-specific detection |
+| `--no-auto-topics` | Disable auto-topic extraction, use taxonomy only |
+
+**Topics file format (`nato_topics.json`):**
+```json
+{
+  "Doctrine": ["doctrine", "annex", "edition", "nato"],
+  "Operations": ["operational", "mission", "command"]
+}
+```
 
 ---
 
@@ -309,7 +322,7 @@ python3 prompt_response_evaluator.py --prompt question.txt --response answer.txt
 |--------|-------|---------|
 | `Analyze_all.py` | Session logs | Session stats and topic analysis |
 | `compare_files.py` | 2 files | Line-by-line diff |
-| `compare_ai_content.py` | 2 AI outputs | Topic and content comparison |
+| `compare_ai_content.py` | 2 AI outputs | Specificity, claim density, structure and depth comparison |
 | `consistency_checker.py` | 2+ session logs | Detect contradictory answers |
 | `hallucination_detector.py` | Session log + optional sources | Flag unsupported claims |
 | `report_builder.py` | Session logs | Build formatted reports |
