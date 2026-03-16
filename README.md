@@ -224,6 +224,85 @@ python3 translation_benchmark.py --no-source gold.pdf ai1.odt ai2.docx \
 
 ---
 
+### 11. `terminology_checker.py`
+Checks that key terms are translated consistently throughout a document. Detects cases where the same source term is rendered differently across occurrences. Supports a custom glossary of expected term pairs and can compare two translations side by side.
+
+```bash
+# Auto-detect terms
+python3 terminology_checker.py source.pdf translation.txt
+
+# With a glossary and two translations compared
+python3 terminology_checker.py source.pdf ai1.docx ai2.txt \
+    --label "Onsite AI" --label "Gemini" \
+    --glossary "collective defence=collective defence" "armed forces=armed forces" \
+    -o report.txt --csv terms.csv -v
+```
+
+| Flag | Description |
+|------|-------------|
+| `--glossary TERM=TRANSLATION` | Expected term pairs, repeatable |
+| `--label NAME` | Display name per translation file, repeatable |
+| `--min-freq N` | Minimum source frequency to track a term (default: 2) |
+| `-o FILE` | Save report to file |
+| `--csv FILE` | Export findings to CSV |
+| `-v` | Show all detected variants for each flagged term |
+
+---
+
+### 12. `readability_scorer.py`
+Scores how natural and fluent AI-generated text reads, independent of accuracy. Useful for catching translations or summaries that are technically correct but awkward to read.
+
+```bash
+python3 readability_scorer.py translation.txt
+python3 readability_scorer.py ai1.txt ai2.txt --label "Onsite AI" --label "Gemini" -v
+python3 readability_scorer.py output.txt --source original.txt -o report.txt --csv scores.csv
+```
+
+**Dimensions scored:** Sentence Length Variety · Avg Sentence Length · Word Complexity · Passive Voice Ratio · Repetition · Paragraph Structure · Filler/AI-isms · Punctuation Flow
+
+| Flag | Description |
+|------|-------------|
+| `--source FILE` | Optional source document for baseline comparison |
+| `--label NAME` | Display name per file, repeatable |
+| `-o FILE` | Save report to file |
+| `--csv FILE` | Export scores to CSV |
+| `-v` | Print example sentences for flagged dimensions |
+
+**Grades:** A (88+) · B (75+) · C (60+) · D (45+) · F (<45)
+
+---
+
+### 13. `prompt_response_evaluator.py`
+Scores how well AI responses address the questions asked. Works on session log files or individual prompt/response file pairs. Useful for evaluating Q&A session quality alongside the translation tools.
+
+```bash
+# Evaluate all turns in a session log
+python3 prompt_response_evaluator.py session.txt -v
+
+# Compare two AI sessions
+python3 prompt_response_evaluator.py session_ai1.txt session_ai2.txt \
+    --label "Onsite AI" --label "Gemini" -o report.txt --csv scores.csv
+
+# Single prompt/response pair from files
+python3 prompt_response_evaluator.py --prompt question.txt --response answer.txt
+```
+
+**Dimensions scored:** Relevance · Completeness · Conciseness · Directness · Topic Consistency · Question Coverage
+
+| Flag | Description |
+|------|-------------|
+| `--prompt FILE` | Single prompt file (use with --response) |
+| `--response FILE` | Single response file (use with --prompt) |
+| `--label NAME` | Display name per session file, repeatable |
+| `--min-words N` | Minimum response words to score (default: 10) |
+| `-o FILE` | Save report to file |
+| `--csv FILE` | Export turn-level scores to CSV |
+| `-v` | Print per-turn score table and flag worst turns |
+
+**Grades:** A (88+) · B (75+) · C (60+) · D (45+) · F (<45)
+
+---
+
 ## Quick Reference
 
 | Script | Input | Purpose |
@@ -237,4 +316,7 @@ python3 translation_benchmark.py --no-source gold.pdf ai1.odt ai2.docx \
 | `translation_evaluator.py` | Source + translation | Evaluate one translation |
 | `summary_scorer.py` | Source + summary | Score an AI summary |
 | `batch_runner.py` | Folder of files | Run any script across a whole folder |
-| `translation_benchmark.py` | Russian + "Gold" (Standard/Control) + 2 AI translations | Compare two AI translations head-to-head |
+| `translation_benchmark.py` | Source + gold + 2 AI translations | Compare two AI translations head-to-head |
+| `terminology_checker.py` | Source + 1–2 translations | Check consistent use of key terms |
+| `readability_scorer.py` | 1+ AI output files | Score fluency and natural reading flow |
+| `prompt_response_evaluator.py` | Session logs or prompt/response pair | Score how well responses address questions |
