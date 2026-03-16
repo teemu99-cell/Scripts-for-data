@@ -244,7 +244,8 @@ class TermResult:
 def check_terminology(src_text: str, tgt_text: str,
                       label: str, path: str,
                       glossary: dict,
-                      min_freq: int = 2) -> TermResult:
+                      min_freq: int = 2,
+                      glossary_only: bool = False) -> TermResult:
 
     result   = TermResult(label=label, path=path)
     src_sents = get_sentences(src_text)
@@ -281,6 +282,9 @@ def check_terminology(src_text: str, tgt_text: str,
             result.passed += 1
 
     # ── 2. Auto-detected term consistency ────────────────────────────────────
+    if glossary_only:
+        return result
+
     candidate_terms = extract_candidate_terms(src_text, min_freq)
 
     # Sort by frequency descending, check top 40
@@ -462,6 +466,9 @@ def main():
     parser.add_argument("--label", nargs="*", default=[],
                         dest="labels",
                         help="Display names for translations (one per file)")
+    parser.add_argument("--glossary-only", action="store_true",
+                        help="Only check glossary terms, skip auto-detection "
+                             "(recommended for long documents)")
     parser.add_argument("--min-freq", type=int, default=2,
                         help="Minimum source frequency to track a term (default: 2)")
     parser.add_argument("-o", "--output", help="Save text report to file")
@@ -510,6 +517,8 @@ def main():
 
     if glossary:
         print(f"  Glossary: {len(glossary)} term pair(s) loaded")
+    if args.glossary_only:
+        print(clr("  Mode: glossary-only (auto-detection disabled)", "yellow"))
     print(f"  Min term frequency: {args.min_freq}")
 
     print(clr(f"\n{DIV}", "bold"))
@@ -527,7 +536,7 @@ def main():
             print(clr(f"  Error: {p.name} is empty.", "red")); continue
 
         r = check_terminology(src_text, tgt_text, label, str(p),
-                              glossary, args.min_freq)
+                              glossary, args.min_freq, args.glossary_only)
         results.append(r)
         print_result(r, args.verbose)
 
