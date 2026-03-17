@@ -15,6 +15,11 @@ On Windows omit `--break-system-packages`:
 python -m pip install python-docx pymupdf
 ```
 
+For `semantic_similarity.py` only:
+```bash
+pip install sentence-transformers --break-system-packages
+```
+
 ---
 
 ## Scripts
@@ -316,6 +321,96 @@ python3 prompt_response_evaluator.py --prompt question.txt --response answer.txt
 
 ---
 
+### 14. `semantic_similarity.py`
+Measures how well an AI output (translation or summary) preserves the *meaning* of its source document using sentence embeddings. Unlike keyword-based tools that count shared words, this script encodes every sentence into a vector and compares by cosine similarity — so semantically equivalent sentences score as near-identical even when they share no words.
+
+> **Requires:** `pip install sentence-transformers --break-system-packages`  
+> The model (`paraphrase-multilingual-MiniLM-L12-v2`) downloads ~400 MB on first run and is then cached locally. Handles Finnish/English pairs well.
+
+```bash
+python3 semantic_similarity.py source.txt translation.txt
+python3 semantic_similarity.py source.docx summary.txt -v
+python3 semantic_similarity.py source.txt ai1.txt ai2.txt \
+    --label "Onsite AI" --label "Gemini" -o report.txt --csv scores.csv
+python3 semantic_similarity.py source.txt translation.txt --mode translation
+python3 semantic_similarity.py source.txt summary.txt --mode summary
+```
+
+**Dimensions scored:** Overall Semantic Score · Mean Sentence Similarity · Coverage · Depth Alignment · Coherence
+
+| Flag | Description |
+|------|-------------|
+| `--mode MODE` | Evaluation mode: `translation`, `summary`, or `auto` (default: auto-detect) |
+| `--label NAME` | Display name per output file, repeatable |
+| `--threshold FLOAT` | Cosine similarity floor for a "good" sentence match (default: 0.75) |
+| `-o FILE` | Save report to file |
+| `--csv FILE` | Export sentence-level scores to CSV |
+| `-v` | Print per-sentence similarity table and flag weak matches |
+
+**Grades:** A (88+) · B (75+) · C (60+) · D (45+) · F (<45)
+
+---
+
+### 15. `tone_register_checker.py`
+Checks whether an AI-produced translation or summary preserves the *tone and register* of its source document. Catches cases where a formal institutional document comes back sounding casual, over-hedged, or contaminated with AI filler phrases. Scores the output *relative to the source* — if the source is already informal, an informal output is not penalised.
+
+```bash
+python3 tone_register_checker.py source.txt translation.txt
+python3 tone_register_checker.py source.docx ai1.txt ai2.txt \
+    --label "Onsite AI" --label "Gemini" -o report.txt --csv scores.csv -v
+```
+
+**Dimensions scored:** Formality Level · Passive Voice Ratio · Sentence Complexity · Hedging / Uncertainty · AI-ism Contamination · Vocabulary Overlap
+
+| Flag | Description |
+|------|-------------|
+| `--label NAME` | Display name per output file, repeatable |
+| `-o FILE` | Save report to file |
+| `--csv FILE` | Export dimension scores to CSV |
+| `-v` | Print example sentences for flagged dimensions |
+
+**Grades:** A (88+) · B (75+) · C (60+) · D (45+) · F (<45)
+
+---
+
+### 16. `dashboard_builder.py`
+Reads CSV output files from any of the toolkit scripts and builds a single self-contained HTML dashboard with interactive charts. No external dependencies — the output is one `.html` file that works offline and can be shared with non-technical stakeholders by simply sending the file.
+
+Auto-detects the schema of each CSV (translation benchmark, summary scorer, readability, tone register, semantic similarity, prompt response, or generic) and generates the appropriate chart types automatically.
+
+```bash
+# Feed any mix of CSV files from the toolkit
+python3 dashboard_builder.py scores1.csv scores2.csv -o dashboard.html
+
+# With a custom title
+python3 dashboard_builder.py semantic.csv tone.csv \
+    --title "AI Eval - Week 12" -o report.html
+
+# Auto-detect all CSVs in a folder
+python3 dashboard_builder.py --folder ./results -o dashboard.html
+```
+
+**Typical end-to-end workflow:**
+```bash
+python3 semantic_similarity.py source.txt ai1.txt ai2.txt \
+    --label "Onsite AI" --label "Gemini" --csv semantic.csv
+
+python3 tone_register_checker.py source.txt ai1.txt ai2.txt \
+    --label "Onsite AI" --label "Gemini" --csv tone.csv
+
+python3 dashboard_builder.py semantic.csv tone.csv \
+    --title "Week 12 Evaluation" -o dashboard.html
+```
+
+| Flag | Description |
+|------|-------------|
+| `--title TEXT` | Dashboard title (default: "AI Evaluation Dashboard") |
+| `--folder DIR` | Load all `.csv` files from a directory |
+| `-o FILE` | Output HTML file (default: `dashboard.html`) |
+| `-v` | Print detected CSV types and table summaries |
+
+---
+
 ## Quick Reference
 
 | Script | Input | Purpose |
@@ -333,3 +428,6 @@ python3 prompt_response_evaluator.py --prompt question.txt --response answer.txt
 | `terminology_checker.py` | Source + 1–2 translations | Check consistent use of key terms |
 | `readability_scorer.py` | 1+ AI output files | Score fluency and natural reading flow |
 | `prompt_response_evaluator.py` | Session logs or prompt/response pair | Score how well responses address questions |
+| `semantic_similarity.py` | Source + 1+ AI outputs | Score meaning preservation using sentence embeddings |
+| `tone_register_checker.py` | Source + 1+ AI outputs | Check tone and register consistency against source |
+| `dashboard_builder.py` | CSV files from any script | Build an interactive HTML dashboard from results |
