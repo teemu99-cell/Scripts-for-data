@@ -8,11 +8,11 @@ All scripts work on `.txt` and `.docx` files unless noted otherwise.
 ## Installation
 
 ```bash
-pip install python-docx pymupdf --break-system-packages
+pip install python-docx pymupdf pandas --break-system-packages
 ```
 On Windows omit `--break-system-packages`:
 ```
-python -m pip install python-docx pymupdf
+python -m pip install python-docx pymupdf pandas
 ```
 
 For `semantic_similarity.py` only:
@@ -411,6 +411,43 @@ python3 dashboard_builder.py semantic.csv tone.csv \
 
 ---
 
+### 17. `spreadsheet_to_sql.py`
+Converts CSV and spreadsheet files into SQL statements for database import. Generates CREATE TABLE and INSERT statements compatible with SQLite or PostgreSQL. Useful for loading test data, survey results, or AI evaluation datasets into databases for further analysis.
+
+> **Requires:** `pip install pandas --break-system-packages`
+
+```bash
+# Generate SQL file for SQLite
+python3 spreadsheet_to_sql.py data.csv --dialect sqlite --output data.sql
+
+# Load directly into a SQLite database
+python3 spreadsheet_to_sql.py data.csv --dialect sqlite --db mydatabase.db
+
+# Generate PostgreSQL-compatible SQL
+python3 spreadsheet_to_sql.py survey_results.csv --dialect postgres --output import.sql
+
+# Both file output and database load
+python3 spreadsheet_to_sql.py data.csv --dialect sqlite --output backup.sql --db live.db
+```
+
+**Important:** The CSV file must have a proper header row with column names. If your CSV has an incomplete header (e.g., `,,column_name,,`), the script will auto-generate placeholder names like `unnamed__0`. Fix the header row first for best results.
+
+| Flag | Description |
+|------|-------------|
+| `--dialect` / `-d` | **Required.** SQL dialect: `sqlite` or `postgres` |
+| `--output` | Save SQL statements to a file |
+| `--db` | Database file to create/update (SQLite) or connection string (PostgreSQL) |
+| `input` | CSV file to convert (positional argument) |
+
+**Note:** You must provide at least one of `--output` or `--db`. Providing both will generate the SQL file *and* execute it against the database.
+
+**Common issues:**
+- **Missing headers:** If columns show as `unnamed__N`, your CSV header row is incomplete. Add proper column names to the first row.
+- **Empty rows:** The script reads all rows in the CSV. Remove empty rows from your source file before conversion.
+- **Encoding:** For non-ASCII characters, ensure your CSV is UTF-8 encoded.
+
+---
+
 ## Quick Reference
 
 | Script | Input | Purpose |
@@ -431,3 +468,4 @@ python3 dashboard_builder.py semantic.csv tone.csv \
 | `semantic_similarity.py` | Source + 1+ AI outputs | Score meaning preservation using sentence embeddings |
 | `tone_register_checker.py` | Source + 1+ AI outputs | Check tone and register consistency against source |
 | `dashboard_builder.py` | CSV files from any script | Build an interactive HTML dashboard from results |
+| `spreadsheet_to_sql.py` | CSV file | Convert spreadsheet data to SQL statements |
