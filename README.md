@@ -412,12 +412,13 @@ python3 dashboard_builder.py semantic.csv tone.csv \
 ---
 
 ### 17. `spreadsheet_to_sql.py`
-Converts CSV and spreadsheet files into SQL statements for database import. Generates CREATE TABLE and INSERT statements compatible with SQLite or PostgreSQL. Useful for loading test data, survey results, or AI evaluation datasets into databases for further analysis.
+Converts `.csv` and `.xlsx` spreadsheet files into SQL statements for database import. Generates `CREATE TABLE` and `INSERT` statements compatible with SQLite or PostgreSQL. Useful for loading test data, survey results, or AI evaluation datasets into a database for further analysis.
 
-> **Requires:** `pip install pandas --break-system-packages`
+> **Requires:** `pip install pandas openpyxl numpy --break-system-packages`  
+> `psycopg2-binary` is additionally required for direct PostgreSQL writes: `pip install psycopg2-binary --break-system-packages`
 
 ```bash
-# Generate SQL file for SQLite
+# Generate a SQL file (SQLite dialect)
 python3 spreadsheet_to_sql.py data.csv --dialect sqlite --output data.sql
 
 # Load directly into a SQLite database
@@ -426,25 +427,38 @@ python3 spreadsheet_to_sql.py data.csv --dialect sqlite --db mydatabase.db
 # Generate PostgreSQL-compatible SQL
 python3 spreadsheet_to_sql.py survey_results.csv --dialect postgres --output import.sql
 
-# Both file output and database load
+# Both: write SQL file and load into the database in one step
 python3 spreadsheet_to_sql.py data.csv --dialect sqlite --output backup.sql --db live.db
+
+# Multi-sheet Excel — each sheet becomes its own table
+python3 spreadsheet_to_sql.py data.xlsx --dialect sqlite --output out.sql
 ```
 
-**Important:** The CSV file must have a proper header row with column names. If your CSV has an incomplete header (e.g., `,,column_name,,`), the script will auto-generate placeholder names like `unnamed__0`. Fix the header row first for best results.
+**What the script infers automatically:**
+
+- **Column types** — each column is inspected and assigned `INTEGER`, `REAL` / `DOUBLE PRECISION`, `TIMESTAMP`, or `TEXT`. Safe integer bounds are checked to avoid silent overflow on large floats.
+- **Primary key** — if the first column contains no nulls and no duplicate values, it is marked `PRIMARY KEY` automatically. A notice is printed when this fires so you can verify the choice.
+- **CHECK constraints** — TEXT columns with 10 or fewer distinct values (e.g. `Air`, `Land`, `Sea`, `Unknown`) are automatically given `CHECK("col" IN (...))` constraints to enforce allowed values at the database level.
+- **Constant column extraction** — if every row in a column shares the same value (e.g. a repeated survey question), that column is removed from the main table and placed in a separate `tablename_constants` table containing a single row. This avoids storing the repeated value thousands of times and is noted in the output SQL with an explanatory comment.
+
+**Multi-sheet `.xlsx` support:** each sheet is converted into its own table, named after the sheet. If two sheet names sanitize to the same identifier, a numeric suffix is added automatically.
 
 | Flag | Description |
 |------|-------------|
 | `--dialect` / `-d` | **Required.** SQL dialect: `sqlite` or `postgres` |
-| `--output` | Save SQL statements to a file |
-| `--db` | Database file to create/update (SQLite) or connection string (PostgreSQL) |
-| `input` | CSV file to convert (positional argument) |
+| `--output` / `-o` | Save SQL statements to a `.sql` file |
+| `--db` | Write directly to a database — SQLite file path or PostgreSQL connection string |
+| `input` | Path to `.csv` or `.xlsx` file (positional argument) |
 
-**Note:** You must provide at least one of `--output` or `--db`. Providing both will generate the SQL file *and* execute it against the database.
+You must provide at least one of `--output` or `--db`. Providing both generates the SQL file and also executes it against the database.
 
 **Common issues:**
-- **Missing headers:** If columns show as `unnamed__N`, your CSV header row is incomplete. Add proper column names to the first row.
-- **Empty rows:** The script reads all rows in the CSV. Remove empty rows from your source file before conversion.
-- **Encoding:** For non-ASCII characters, ensure your CSV is UTF-8 encoded.
+
+- **Missing headers** — if columns appear as `unnamed__n`, the CSV header row is incomplete. Add proper column names to the first row before running the script.
+- **Primary key not detected** — the script only checks the first column. If your ID column is not first, or contains any nulls or duplicates, no `PRIMARY KEY` will be assigned. Review the output SQL and add it manually if needed.
+- **Unexpected constants table** — if a column you expected in the main table has been moved to `tablename_constants`, it means every row contained the same value. This is intentional behaviour; you can rejoin the tables in queries or restructure the source file if preferred.
+- **Empty rows** — the script reads all rows. Remove empty rows from the source file before conversion.
+- **Encoding** — for non-ASCII characters, ensure the CSV is UTF-8 encoded.
 
 ---
 
@@ -468,4 +482,4 @@ python3 spreadsheet_to_sql.py data.csv --dialect sqlite --output backup.sql --db
 | `semantic_similarity.py` | Source + 1+ AI outputs | Score meaning preservation using sentence embeddings |
 | `tone_register_checker.py` | Source + 1+ AI outputs | Check tone and register consistency against source |
 | `dashboard_builder.py` | CSV files from any script | Build an interactive HTML dashboard from results |
-| `spreadsheet_to_sql.py` | CSV file | Convert spreadsheet data to SQL statements |
+| `spreadsheet_to_sql.py` | `.csv` or `.xlsx` file | Convert spreadsheet data to SQL with auto-inferred schema |
