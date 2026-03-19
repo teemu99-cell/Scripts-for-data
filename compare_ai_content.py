@@ -389,68 +389,194 @@ def print_report(r, verbose=False):
               f"({max(t1c,t2c)} vs {min(t1c,t2c)})")
     print()
 
+
+# ── multi-file scoring ────────────────────────────────────────────────────────
+def score_all_files(texts: list, names: list, taxonomy: dict) -> list:
+    """
+    Score each file against the combined pool of all other files.
+    Returns a list of dicts with name, scores, and topics.
+    """
+    results = []
+    for i, (name, text) in enumerate(zip(names, texts)):
+        # "other" = all texts except this one combined
+        other_texts = [t for j, t in enumerate(texts) if j != i]
+        other_combined = " ".join(other_texts)
+        scores = score_response(text, other_combined)
+        topics = detect_topics_in_text(text, taxonomy)
+        results.append({
+            "name":   name,
+            "scores": scores,
+            "topics": topics,
+            "text":   text,
+        })
+    return results
+
+
+# ── leaderboard display ───────────────────────────────────────────────────────
+def print_leaderboard(results: list):
+    sorted_r = sorted(results, key=lambda x: -x["scores"]["overall_score"])
+
+    print(f"\n{clr(DIV, 'bold')}")
+    print(clr("  AI CONTENT COMPARISON — LEADERBOARD", "bold"))
+    print(DIV)
+
+    score_keys = ["overall_score","specificity_score","claim_score",
+                  "structure_score","depth_score"]
+    labels     = ["Overall","Specificity","Claim Density","Structure","Depth"]
+    col = 10
+
+    # Header
+    h = f"  {'File':<32}"
+    for l in labels:
+        h += f"  {l[:col]:<{col}}"
+    print(h)
+    print("  " + "-" * (32 + (col+2)*len(labels)))
+
+    for r in sorted_r:
+        row = f"  {r['name'][:30]:<32}"
+        for key in score_keys:
+            v  = r["scores"].get(key, 0)
+            vc = "green" if float(v)>=7 else "yellow" if float(v)>=4 else "red"
+            row += f"  {clr(str(v)[:col], vc):<{col+9}}"
+        print(row)
+
+    print()
+    winner = sorted_r[0]
+    loser  = sorted_r[-1]
+    print(f"  {clr('▶  HIGHEST OVERALL:', 'bold')} "
+          f"{clr(winner['name'], 'green')} ({winner['scores']['overall_score']}/10)")
+    if len(sorted_r) > 1:
+        print(f"  {clr('▶  LOWEST OVERALL: ', 'bold')} "
+              f"{clr(loser['name'],  'red')}  ({loser['scores']['overall_score']}/10)")
+
+    # Dimension winners
+    print(f"\n  {clr('DIMENSION WINNERS', 'bold')}")
+    print("  " + "-" * 50)
+    for key, label in zip(score_keys[1:], labels[1:]):
+        vals = [(r["scores"].get(key,0), r["name"]) for r in results]
+        best_v, best_n = max(vals, key=lambda x: float(x[0]))
+        worst_v, worst_n = min(vals, key=lambda x: float(x[0]))
+        spread = round(float(best_v) - float(worst_v), 1)
+        sp_str = clr(f"  (spread: {spread})", "yellow") if spread >= 2 else ""
+        print(f"  {label:<20} {clr(best_n[:28], 'green')}{sp_str}")
+
+    # Topic coverage summary
+    all_topics = sorted({t for r in results for t in r["topics"]})
+    if all_topics:
+        print(f"\n  {clr('TOPIC COVERAGE', 'bold')}")
+        print("  " + "-" * 50)
+        for topic in all_topics:
+            covers = [r["name"][:16] for r in results if topic in r["topics"]]
+            ratio  = len(covers) / len(results)
+            bar_c  = "green" if ratio >= 0.7 else "yellow" if ratio >= 0.4 else "red"
+            print(f"  {topic:<30} {clr(f'{len(covers)}/{len(results)} files', bar_c)}")
+    print()
+
+
+# ── multi-file CSV export ─────────────────────────────────────────────────────
+def export_csv_multi(results: list, out: Path):
+    score_keys = ["overall_score","specificity_score","claim_score",
+                  "structure_score","depth_score","contrast_refs",
+                  "claim_count","total_words","avg_sent_words",
+                  "section_refs","doc_names","urls"]
+
+    all_topics = sorted({t for r in results for t in r["topics"]})
+
+    fieldnames = (["file"] +
+                  score_keys +
+                  [f"topic:{t[:30]}" for t in all_topics] +
+                  ["best_dimension","worst_dimension","topics_covered"])
+
+    rows = []
+    for r in sorted(results, key=lambda x: -x["scores"]["overall_score"]):
+        row = {"file": r["name"]}
+        dim_scores = {}
+        for k in score_keys:
+            v = r["scores"].get(k, 0)
+            row[k] = v
+            if k.endswith("_score"):
+                dim_scores[k] = float(v)
+        for t in all_topics:
+            row[f"topic:{t[:30]}"] = "yes" if t in r["topics"] else "no"
+        if dim_scores:
+            row["best_dimension"]  = max(dim_scores, key=dim_scores.get)
+            row["worst_dimension"] = min(dim_scores, key=dim_scores.get)
+        row["topics_covered"] = len(r["topics"])
+        rows.append(row)
+
+    with open(out, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader(); w.writerows(rows)
+    print(clr(f"\nCSV exported → {out}", "green"))
+    print(clr(f"  {len(results)} files × {len(score_keys)} scores + "
+              f"{len(all_topics)} topics, sorted by overall score", "blue"))
+
+
 # ── text report ───────────────────────────────────────────────────────────────
-def build_text_report(r):
-    s1, s2 = r["scores1"], r["scores2"]
-    lines = [DIV,"AI CONTENT COMPARISON REPORT",DIV,"",
-             f"File 1: {r['name1']}",f"File 2: {r['name2']}","","SCORES","-"*40]
-    for k in ("overall_score","specificity_score","claim_score","structure_score",
-              "depth_score","contrast_refs","claim_count","total_words","avg_sent_words"):
-        lines.append(f"  {k:<30} {r['name1']}: {s1.get(k,0)}  |  {r['name2']}: {s2.get(k,0)}")
-    lines += ["","TOPIC COVERAGE","-"*40]
-    for t in r["all_topics"]:
-        i1 = "✓" if t in r["topics1"] else "✗"
-        i2 = "✓" if t in r["topics2"] else "✗"
-        lines.append(f"  {t:<34}  {r['name1']}: {i1}   {r['name2']}: {i2}")
-    lines += ["","UNIQUE TOPICS","-"*40]
-    for t in r["only_in_1"]: lines.append(f"  Only in {r['name1']}: {t}")
-    for t in r["only_in_2"]: lines.append(f"  Only in {r['name2']}: {t}")
+def build_text_report_multi(results: list) -> str:
+    lines = [DIV, "AI CONTENT COMPARISON REPORT", DIV, ""]
+    sorted_r = sorted(results, key=lambda x: -x["scores"]["overall_score"])
+    for r in sorted_r:
+        s = r["scores"]
+        lines += [
+            f"File    : {r['name']}",
+            f"Overall : {s.get('overall_score',0)}/10",
+            f"  Specificity : {s.get('specificity_score',0)}",
+            f"  Claim Density: {s.get('claim_score',0)}",
+            f"  Structure   : {s.get('structure_score',0)}",
+            f"  Depth       : {s.get('depth_score',0)}",
+            f"  Topics      : {', '.join(sorted(r['topics'])[:6])}",
+            "",
+        ]
     return "\n".join(lines)
 
-# ── CSV export ────────────────────────────────────────────────────────────────
-def export_csv(r, out):
-    rows = []
-    for t in r["all_topics"]:
-        rows.append({"topic":t, r["name1"]:"yes" if t in r["topics1"] else "no",
-                     r["name2"]:"yes" if t in r["topics2"] else "no",
-                     "shared":"yes" if t in r["shared"] else "no"})
-    for k in ("overall_score","specificity_score","claim_score","structure_score",
-              "depth_score","claim_count","total_words"):
-        rows.append({"topic":f"SCORE:{k}", r["name1"]:r["scores1"].get(k,0),
-                     r["name2"]:r["scores2"].get(k,0),"shared":""})
-    with open(out,"w",newline="",encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=rows[0].keys())
-        w.writeheader(); w.writerows(rows)
-    print(clr(f"\nCSV exported → {out}","green"))
 
 # ── main ──────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(
-        description="Content-level comparison of two AI session outputs.")
-    parser.add_argument("file1")
-    parser.add_argument("file2")
+        description="Content-level comparison of multiple AI outputs.")
+    parser.add_argument("files", nargs="+",
+                        help="Two or more AI output files to compare "
+                             "(.txt / .docx / .pdf)")
     parser.add_argument("-o","--output",      help="Save text report")
-    parser.add_argument("--csv",              help="Export topic matrix + scores to CSV")
+    parser.add_argument("--csv",              help="Export scores + topics to CSV")
     parser.add_argument("-v","--verbose",     action="store_true",
-                        help="Show detail breakdown and key sentences per topic")
+                        help="Show detail breakdown per file")
     parser.add_argument("--topics-file",      default=None,
                         help='JSON file with custom topic taxonomy: {"Cat":["kw1","kw2"]}')
     parser.add_argument("--no-auto-topics",   action="store_true",
                         help="Disable auto-topic extraction, use taxonomy only")
     args = parser.parse_args()
 
-    p1, p2 = Path(args.file1), Path(args.file2)
-    for p in (p1,p2):
+    # Validate and load files
+    paths = []
+    for f in args.files:
+        p = Path(f)
         if not p.exists():
-            print(clr(f"Error: '{p}' not found.","red")); sys.exit(1)
+            print(clr(f"Warning: not found — {p}", "yellow"))
+        else:
+            paths.append(p)
 
-    try:
-        raw1, raw2 = read_file(p1), read_file(p2)
-    except (ImportError, ValueError) as e:
-        print(clr(str(e),"red")); sys.exit(1)
+    if len(paths) < 2:
+        print(clr("Error: need at least 2 files to compare.", "red")); sys.exit(1)
 
-    text1 = extract_ai_answer(raw1)
-    text2 = extract_ai_answer(raw2)
+    print(clr(f"\nLoading {len(paths)} file(s)…", "bold"))
+    texts, names = [], []
+    for p in paths:
+        try:
+            raw  = read_file(p)
+            text = extract_ai_answer(raw)
+            if not text.strip():
+                print(clr(f"  Warning: {p.name} is empty — skipping.", "yellow"))
+                continue
+            texts.append(text)
+            names.append(p.stem)
+            print(f"  {p.name:<50} {len(text.split()):>6} words")
+        except Exception as e:
+            print(clr(f"  Error reading {p.name}: {e}", "red"))
+
+    if len(texts) < 2:
+        print(clr("Not enough valid files.", "red")); sys.exit(1)
 
     # Build taxonomy
     taxonomy = {}
@@ -469,18 +595,39 @@ def main():
         taxonomy = FALLBACK_TOPICS.copy()
 
     if not args.no_auto_topics:
-        auto = extract_auto_topics(text1, text2, top_n=10)
+        # Auto-extract from all texts combined
+        combined1 = " ".join(texts[:len(texts)//2])
+        combined2 = " ".join(texts[len(texts)//2:])
+        auto = extract_auto_topics(combined1, combined2, top_n=10)
         taxonomy.update(auto)
-        print(clr(f"Auto-extracted {len(auto)} topic clusters from document content.","cyan"))
+        print(clr(f"Auto-extracted {len(auto)} topic clusters from content.", "cyan"))
 
-    result = compare_content(text1, text2, p1.stem, p2.stem, taxonomy)
-    print_report(result, verbose=args.verbose)
+    # Score all files
+    print(clr(f"\nScoring {len(texts)} file(s)…", "bold"))
+    results = score_all_files(texts, names, taxonomy)
+
+    # Print individual scores if verbose, otherwise just leaderboard
+    if args.verbose:
+        for r in results:
+            s = r["scores"]
+            print(f"\n  {clr(r['name'], 'bold')}")
+            for k, l in [("overall_score","Overall"),("specificity_score","Specificity"),
+                         ("claim_score","Claim Density"),("structure_score","Structure"),
+                         ("depth_score","Depth")]:
+                v  = s.get(k,0)
+                vc = "green" if float(v)>=7 else "yellow" if float(v)>=4 else "red"
+                print(f"    {l:<20} {clr(str(v), vc)}")
+            if r["topics"]:
+                print(f"    {'Topics':<20} {', '.join(sorted(r['topics'])[:5])}")
+
+    print_leaderboard(results)
 
     if args.output:
-        Path(args.output).write_text(build_text_report(result), encoding="utf-8")
-        print(clr(f"Report saved → {args.output}","green"))
+        Path(args.output).write_text(build_text_report_multi(results), encoding="utf-8")
+        print(clr(f"Report saved → {args.output}", "green"))
+
     if args.csv:
-        export_csv(result, Path(args.csv))
+        export_csv_multi(results, Path(args.csv))
 
 if __name__ == "__main__":
     main()
