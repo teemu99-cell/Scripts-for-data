@@ -379,70 +379,164 @@ def build_report(r: SummaryScore) -> str:
             lines.append(f"  ▸ {s[:200]}")
     return "\n".join(lines)
 
-# ── CSV export ────────────────────────────────────────────────────────────────
-def export_csv(r: SummaryScore, out: Path):
-    rows = [{
-        "src_file":    Path(r.src_path).name,
-        "sum_file":    Path(r.sum_path).name,
-        "src_words":   r.src_words,
-        "sum_words":   r.sum_words,
-        "compression": f"{r.compression:.3f}",
-        "overall":     r.overall,
-        "grade":       r.grade,
-        "dimension":   d.name,
-        "score":       d.score,
-        "verdict":     d.verdict,
-        "detail":      d.detail[:300],
-    } for d in r.dimensions]
+
+# ── CSV export — multi-summary comparison matrix ──────────────────────────────
+def export_csv_multi(results: list, out: Path):
+    """
+    One row per summary file, one column per dimension score.
+    Clean comparison matrix — open directly in a spreadsheet.
+    """
+    if not results:
+        print(clr("No results to export.", "yellow")); return
+
+    dim_names = [d.name for d in results[0].dimensions]
+
+    fieldnames = (
+        ["summary_file", "src_words", "sum_words", "compression",
+         "overall", "grade"] +
+        [d.replace(" ", "_").replace("/","").lower() for d in dim_names] +
+        ["best_dimension", "worst_dimension"]
+    )
+
+    rows = []
+    for r in results:
+        row = {
+            "summary_file": Path(r.sum_path).name,
+            "src_words":    r.src_words,
+            "sum_words":    r.sum_words,
+            "compression":  f"{r.compression:.1%}",
+            "overall":      r.overall,
+            "grade":        r.grade,
+        }
+        scores = {}
+        for d in r.dimensions:
+            key = d.name.replace(" ", "_").replace("/","").lower()
+            row[key] = d.score
+            scores[d.name] = d.score
+        row["best_dimension"]  = max(scores, key=scores.get)
+        row["worst_dimension"] = min(scores, key=scores.get)
+        rows.append(row)
+
+    # Sort by overall score descending
+    rows.sort(key=lambda x: -x["overall"])
 
     with open(out, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=rows[0].keys())
-        w.writeheader(); w.writerows(rows)
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
     print(clr(f"\nCSV exported → {out}", "green"))
+    print(clr(f"  {len(results)} summaries scored, sorted by overall score", "blue"))
+
+
+# ── multi-summary terminal summary table ──────────────────────────────────────
+def print_leaderboard(results: list):
+    """Print a ranked leaderboard of all summaries."""
+    sorted_r = sorted(results, key=lambda x: -x.overall)
+
+    print(f"\n{clr(DIV, 'bold')}")
+    print(clr("  SUMMARY SCORER — LEADERBOARD", "bold"))
+    print(DIV)
+    print(f"  {'Rank':<5} {'File':<40} {'Overall':>8} {'Grade':>6} {'Compression':>12}")
+    print("  " + "-" * 74)
+
+    for i, r in enumerate(sorted_r, 1):
+        ov_c = "green" if r.overall >= 75 else "yellow" if r.overall >= 55 else "red"
+        g_c  = {"A":"green","B":"green","C":"yellow","D":"yellow","F":"red"}.get(r.grade,"reset")
+        name = Path(r.sum_path).stem[:38]
+        print(f"  {i:<5} {name:<40} "
+              f"{clr(str(r.overall).rjust(3), ov_c):>8} "
+              f"{clr(r.grade, g_c):>6} "
+              f"{r.compression:.1%}".rjust(12))
+
+    print()
+    winner = sorted_r[0]
+    print(f"  {clr('▶  BEST OVERALL:', 'bold')} {clr(Path(winner.sum_path).stem, 'green')} "
+          f"({winner.overall}/100  Grade {winner.grade})")
+    if len(sorted_r) > 1:
+        loser = sorted_r[-1]
+        print(f"  {clr('▶  LOWEST SCORE:', 'bold')} {clr(Path(loser.sum_path).stem, 'red')} "
+              f"({loser.overall}/100  Grade {loser.grade})")
+
+    # Dimension-level winners
+    print(f"\n  {clr('DIMENSION WINNERS', 'bold')}")
+    print("  " + "-" * 50)
+    dim_names = [d.name for d in results[0].dimensions]
+    for name in dim_names:
+        scores = [(next(d.score for d in r.dimensions if d.name == name),
+                   Path(r.sum_path).stem[:30]) for r in results]
+        best_score, best_name = max(scores, key=lambda x: x[0])
+        worst_score, worst_name = min(scores, key=lambda x: x[0])
+        spread = best_score - worst_score
+        spread_str = f"  (spread: {spread})" if spread >= 20 else ""
+        print(f"  {name:<28} {clr(best_name, 'green')}{clr(spread_str, 'yellow')}")
+    print()
+
 
 # ── main ──────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(
-        description="Score an AI-generated summary against its source document."
+        description="Score one or more AI-generated summaries against a source document."
     )
-    parser.add_argument("source",  help="Original source document (.txt / .docx)")
-    parser.add_argument("summary", help="AI-generated summary (.txt / .docx)")
+    parser.add_argument("source",
+                        help="Original source document (.txt / .docx / .pdf)")
+    parser.add_argument("summaries", nargs="+",
+                        help="One or more AI-generated summary files (.txt / .docx / .pdf)")
     parser.add_argument("-o", "--output", help="Save text report to file")
-    parser.add_argument("--csv",          help="Export scores to CSV")
+    parser.add_argument("--csv",          help="Export combined comparison matrix to CSV")
     parser.add_argument("-v", "--verbose",action="store_true",
                         help="Print full detail for each dimension")
     args = parser.parse_args()
 
     src_p = Path(args.source)
-    sum_p = Path(args.summary)
+    if not src_p.exists():
+        print(clr(f"Error: source not found — {src_p}", "red")); sys.exit(1)
 
-    for p in (src_p, sum_p):
-        if not p.exists():
-            print(clr(f"Error: not found — {p}", "red")); sys.exit(1)
-
-    print(clr(f"\nLoading source  : {src_p.name}", "bold"))
-    print(clr(f"Loading summary : {sum_p.name}", "bold"))
-
+    print(clr(f"\nLoading source: {src_p.name}", "bold"))
     try:
         src_text = read_file(src_p)
-        sum_text = read_file(sum_p)
     except Exception as e:
-        print(clr(f"Error reading file: {e}", "red")); sys.exit(1)
-
+        print(clr(f"Error reading source: {e}", "red")); sys.exit(1)
     if not src_text.strip():
-        print(clr("Source document is empty.", "red")); sys.exit(1)
-    if not sum_text.strip():
-        print(clr("Summary document is empty.", "red")); sys.exit(1)
+        print(clr("Error: source document is empty.", "red")); sys.exit(1)
+    print(f"  {len(src_text.split())} words loaded")
 
-    result = score_summary(src_text, sum_text, str(src_p), str(sum_p))
-    print_score(result, args.verbose)
+    # Score each summary
+    results = []
+    for sum_arg in args.summaries:
+        sum_p = Path(sum_arg)
+        if not sum_p.exists():
+            print(clr(f"  Warning: not found — {sum_p}", "yellow")); continue
+        try:
+            sum_text = read_file(sum_p)
+        except Exception as e:
+            print(clr(f"  Error reading {sum_p.name}: {e}", "red")); continue
+        if not sum_text.strip():
+            print(clr(f"  Warning: {sum_p.name} is empty — skipping.", "yellow")); continue
 
+        print(clr(f"\nScoring: {sum_p.name}", "bold"))
+        r = score_summary(src_text, sum_text, str(src_p), str(sum_p))
+        results.append(r)
+        print_score(r, args.verbose)
+
+    if not results:
+        print(clr("No valid summary files found.", "red")); sys.exit(1)
+
+    # Show leaderboard if multiple summaries
+    if len(results) > 1:
+        print_leaderboard(results)
+
+    # Save text report (all results)
     if args.output:
-        Path(args.output).write_text(build_report(result), encoding="utf-8")
-        print(clr(f"\nReport saved → {args.output}", "green"))
+        report_lines = []
+        for r in results:
+            report_lines.append(build_report(r))
+            report_lines.append("")
+        Path(args.output).write_text("\n".join(report_lines), encoding="utf-8")
+        print(clr(f"Report saved → {args.output}", "green"))
 
+    # Save combined CSV
     if args.csv:
-        export_csv(result, Path(args.csv))
+        export_csv_multi(results, Path(args.csv))
 
 if __name__ == "__main__":
     main()
