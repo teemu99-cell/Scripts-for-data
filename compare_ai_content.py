@@ -59,6 +59,7 @@ DIV2 = "-" * 68
 
 # ── stop-words ────────────────────────────────────────────────────────────────
 STOPWORDS = {
+    # English
     "the","a","an","and","or","but","in","on","at","to","of","for","with",
     "by","from","is","are","was","were","be","been","has","have","had",
     "that","this","which","it","its","they","their","we","our","as","not",
@@ -68,32 +69,125 @@ STOPWORDS = {
     "does","did","do","its","than","then","i","he","she","him","her",
     "first","second","third","one","two","three","four","five",
     "document","documents","file","files","text","content","section",
+    "language","translation","audience","publication","structure","details",
+    "keskittyy","enemmän","roolia","rooli","asemaa","asema","johtajuutta",
+    "table","contents","highlight","adapted","differences","similarities",
+    "kanssa","välillä","kautta","avulla","osalta","mukaan","lisäksi",
+    "näiden","näillä","näitä","näihin","niitä","niillä","niiden",
+    "käsittely","käsittelyä","käsittelyssä","kritisoi","korostaa",
+    "painottaa","painottavat","korostavat","pyrkivät","pyrkii",
+    "arvojen","arvoilla","arvoista","arvoja","arvo",
+    "principles","priorities","strategic","approach","policy",
     "includes","include","included","provides","provided","provide",
     "based","following","specific","general","similar","different",
-    "information","details","detail","note","notes",
+    "information","details","detail","note","notes","while","whereas",
+    "however","although","whereas","therefore","furthermore","moreover",
+    "additionally","meanwhile","nevertheless","nonetheless",
+    # Finnish discourse words and connectors
+    "ja","tai","on","ei","se","että","oli","ovat","myös","kuin","mutta",
+    "jos","sekä","kun","tämä","nämä","siitä","niiden","hän","he","me",
+    "te","jo","vain","koko","eri","yli","alle","koska","jotta","vaikka",
+    "siis","sillä","kuitenkin","joten","sekä","joka","jotka","jonka",
+    "joita","joiden","jossa","jolla","jolle","jolta","josta","johon",
+    "kun taas","taas","kun","sama","myös","lisäksi","erityisesti",
+    "toisaalta","esimerkiksi","mukaan","välillä","osalta","suhteen",
+    # Finnish document-comparison discourse phrases (should never be topics)
+    "dokumentti","dokumenttia","dokumentin","dokumenttien","dokumentit",
+    "aineisto","aineistoa","aineiston","tässä","tässä on","joitain",
+    "joitakin","molemmat","molemmissa","molempien","molempia",
+    "ensimmäinen","toinen","kolmas","ensimmäisessä","toisessa",
+    "ensimmäistä","toista","vuoden","vuodelta","vuodesta","vuotta",
+    "strategia","strategiaa","strategian","strategiat","strategioita",
+    "dokumentti käsittelee","dokumentti kertoo","dokumentti sisältää",
+    "hallinto","hallinnon","hallintoa","presidentti","presidentin",
+    # Year references (not topics)
+    "2022","2025","2024","2023","vuoden 2022","vuoden 2025",
 }
 
-# ── fallback topic taxonomy ───────────────────────────────────────────────────
+# Additional phrases to filter from auto-extracted topics
+AUTO_TOPIC_BLOCKLIST = {
+    # Finnish discourse fragments
+    "kun taas","toinen dokumentti","molemmat strategiat","aineisto 2022",
+    "vuoden 2025","vuoden 2022","tässä on","dokumentti käsittelee",
+    "dokumentti kertoo","joitakin tärkeimpiä","tärkeimpiä eroja",
+    "eroja yhtäläisyyksiä","yhtäläisyyksiä molemmat","molemmat dokumentit",
+    "dokumentit korostavat","korostavat yhdysvaltain","painottavat talouden",
+    "talouden vahvistamista","vahvistamista innovaatioiden",
+    "sotilaallisen voiman","voiman roolia","roolia niiden",
+    "niiden saavuttamisessa","heijastavat hallintojen","hallintojen prioriteetteja",
+    "keskittyy enemmän","enemmän globaaleihin","globaaleihin haasteisiin",
+    "globaalien haasteiden","haasteiden ratkaisemiseen","ratkaisemiseen yhteistyötä",
+    "roolia yhdysvaltain","roolia yhdysvalloiden","yhdysvalloiden asemaa",
+    "yhdysvaltain johtajuutta","johtajuutta globaalissa","globaalissa politiikassa",
+    "kiinan venäjän","venäjän kanssa","kanssa globaalien",
+    "donald trumpin","trumpin hallintoa","hallintoa sen","sen ideologiaa",
+    "biden hallintoa","bidenin hallinto",
+    # English document-structure fragments
+    "table contents","table of","of contents","language audience",
+    "language translation","content structure","publication details",
+    "additional information","key differences","following differences",
+    "these differences","both documents","first document","second document",
+    "one document","other document","document focuses","document provides",
+    "document includes","document mentions","document describes",
+    "highlight how","adapted for","different audiences",
+    # Comparison meta-language (not topics)
+    "more detailed","more focused","more comprehensive",
+    "key differences","main differences","notable differences",
+    "similarities differences","common themes","shared themes",
+    # More Finnish fragments
+    "näillä dokumenteilla","näiden dokumenttien","dokumenteilla on",
+    "liittolaisten kanssa","kanssa vahvistamaan","kanssa ratkaisemiseen",
+    "käsittely kritisoi","kritisoi voimakkaasti","voimakkaasti kiinaa",
+    "venäjän hyökkäykseen","hyökkäykseen ukrainaan","ukrainaan liittyen",
+    "demokraattisten arvojen","arvojen puolustamista","puolustamista globaalien",
+    "principles priorities","key principles","strategic priorities",
+    "näiden erojen","erojen taustalla","taustalla voidaan",
+    "tärkeimmät erot","pääasiallinen ero","keskeinen ero",
+    "principles and","and priorities","based on",
+}
+
+# ── curated topic taxonomy ────────────────────────────────────────────────────
+# Fixed list — auto-extraction is disabled by default for Finnish/mixed content.
+# Add --no-auto-topics flag or edit this list to customise for your documents.
 FALLBACK_TOPICS = {
-    "Doctrine / Structure":  ["doctrine","annex","publication","edition","version",
-                               "hierarchy","framework","protocol","standard","nato",
-                               "allied","joint","appendix","supplement","chapter"],
-    "Operations":            ["operation","operational","mission","deployment","force",
-                               "campaign","manoeuvre","command","control","execute",
-                               "conduct","objective","task","tactical","strategic"],
-    "Russia / Conflict":     ["russia","ukraine","venäjä","ukraina","conflict",
-                               "war","invasion","sanctions","nato","alliance"],
-    "Economy / Trade":       ["economy","trade","tariff","gdp","budget","fiscal",
-                               "talous","kauppa","inflation","sanction"],
-    "Governance / Policy":   ["policy","governance","legislation","government",
-                               "parliament","regulation","directive","law","legal",
-                               "authority","jurisdiction","compliance"],
-    "Language / Translation":["finnish","english","language","translation","national",
-                               "addition","audience","suomi","finnish-specific"],
-    "Technology":            ["technology","cyber","digital","information","system",
-                               "network","software","data","communication","platform"],
-    "Climate / Environment": ["climate","environment","energy","emission","renewable",
-                               "sustainability","carbon","green"],
+    # Geopolitics & security
+    "Russia / Conflict":      ["russia","ukraine","venäjä","ukraina","conflict",
+                                "war","invasion","hyökkäys","sota","ukrainan"],
+    "China / Kiina":          ["china","kiina","chinese","prc","taiwan","indo-pacific",
+                                "kiinan","beijing"],
+    "National Security":      ["national security","kansallinen turvallisuus",
+                                "turvallisuusstrategia","security strategy",
+                                "kansallinen","turvallisuus"],
+    "Military / Operations":  ["military","operation","sotilaallinen","operaatio",
+                                "armed forces","asevoimat","defense","puolustus",
+                                "midnight hammer","weapon","ase","troops","joukot"],
+    "Alliances / NATO":       ["nato","alliance","liittolainen","liittouma",
+                                "allies","partnership","yhteistyö","aukus","quad"],
+    # Politics & governance
+    "Democracy / Values":     ["democracy","demokratia","democratic","demokraattinen",
+                                "freedom","vapaus","human rights","ihmisoikeus",
+                                "values","arvot","liberal","liberaali"],
+    "America First":          ["america first","unilateral","transactional",
+                                "sovereignty","suvereniteetti","border","raja",
+                                "nationalism","nationalismi","trump corollary"],
+    "Multilateralism":        ["multilateral","monenkeskinen","rules-based",
+                                "international order","coalition","koalitio",
+                                "diplomacy","diplomatia","global cooperation"],
+    # Economics
+    "Economy / Trade":        ["economy","trade","tariff","tulli","gdp","bkt",
+                                "talous","kauppa","inflation","inflaatio",
+                                "sanction","pakote","budget","budjetti",
+                                "energy","energia","infrastructure","infrastruktuuri"],
+    # Other domains
+    "Technology / Cyber":     ["technology","cyber","digital","teknologia",
+                                "kyber","artificial intelligence","tekoäly",
+                                "space","avaruus","innovation","innovaatio"],
+    "Climate / Environment":  ["climate","ilmasto","environment","ympäristö",
+                                "energy transition","clean energy","emission","päästö"],
+    # NATO doctrine (for AJP documents)
+    "Doctrine / Structure":   ["doctrine","doktriini","annex","liite","edition",
+                                "versio","hierarchy","hierarkia","publication",
+                                "julkaisu","capstone","keystone","ajp","allied joint"],
 }
 
 # ── specificity indicators ────────────────────────────────────────────────────
@@ -190,6 +284,14 @@ def extract_auto_topics(text1, text2, top_n=10):
         words = set(gram.split())
         if words & seen_words and len(words & seen_words) >= len(words)-1:
             continue
+        # Skip if any word in the gram is a pure stopword or it's in the blocklist
+        if gram in AUTO_TOPIC_BLOCKLIST: continue
+        if all(w in STOPWORDS for w in gram.split()): continue
+        # Skip if gram looks like a sentence fragment (verb-heavy)
+        frag_words = {"käsittelee","kertoo","sisältää","korostaa","painottaa",
+                      "edustaa","viittaa","julkaistu","julkaisee","pyrkii",
+                      "provides","describes","focuses","includes","represents"}
+        if any(w in frag_words for w in gram.split()): continue
         topics[gram.title()] = [gram] + [w for w in gram.split() if len(w)>3]
         seen_words |= words
         if len(topics) >= top_n: break
@@ -545,7 +647,11 @@ def main():
     parser.add_argument("--topics-file",      default=None,
                         help='JSON file with custom topic taxonomy: {"Cat":["kw1","kw2"]}')
     parser.add_argument("--no-auto-topics",   action="store_true",
-                        help="Disable auto-topic extraction, use taxonomy only")
+                        help="(deprecated, auto-topics now off by default)")
+    parser.add_argument("--auto-topics",      action="store_true",
+                        dest="auto_topics",
+                        help="Enable auto-topic extraction from document content "
+                             "(may produce noisy results with Finnish text)")
     args = parser.parse_args()
 
     # Validate and load files
@@ -595,7 +701,10 @@ def main():
         taxonomy = FALLBACK_TOPICS.copy()
 
     if not args.no_auto_topics:
-        # Auto-extract from all texts combined
+        # Auto-extract disabled by default for Finnish/mixed content
+        # Enable with --auto-topics flag
+        pass
+    if args.auto_topics:
         combined1 = " ".join(texts[:len(texts)//2])
         combined2 = " ".join(texts[len(texts)//2:])
         auto = extract_auto_topics(combined1, combined2, top_n=10)
