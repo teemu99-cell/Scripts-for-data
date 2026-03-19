@@ -646,6 +646,10 @@ def main():
                         help="Show detail breakdown per file")
     parser.add_argument("--topics-file",      default=None,
                         help='JSON file with custom topic taxonomy: {"Cat":["kw1","kw2"]}')
+    parser.add_argument("--label", action="append", default=[],
+                        dest="labels",
+                        help="Short display label per file (repeat once per file, "
+                             "in same order as files)")
     parser.add_argument("--no-auto-topics",   action="store_true",
                         help="(deprecated, auto-topics now off by default)")
     parser.add_argument("--auto-topics",      action="store_true",
@@ -676,13 +680,19 @@ def main():
                 print(clr(f"  Warning: {p.name} is empty — skipping.", "yellow"))
                 continue
             texts.append(text)
-            names.append(p.stem)
+            names.append(p.stem)  # overridden by --label below
             print(f"  {p.name:<50} {len(text.split()):>6} words")
         except Exception as e:
             print(clr(f"  Error reading {p.name}: {e}", "red"))
 
     if len(texts) < 2:
         print(clr("Not enough valid files.", "red")); sys.exit(1)
+
+    # Apply --label overrides
+    if args.labels:
+        for i, lbl in enumerate(args.labels):
+            if i < len(names):
+                names[i] = lbl
 
     # Build taxonomy
     taxonomy = {}
