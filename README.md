@@ -3,21 +3,22 @@
 Scripts for testing and evaluating AI session outputs, translations, and summaries.  
 All scripts work on `.txt` and `.docx` files unless noted otherwise.
 
----
-
-## Installation
+Install core dependencies:
 
 ```bash
-pip install python-docx pymupdf pandas --break-system-packages
-```
-On Windows omit `--break-system-packages`:
-```
-python -m pip install python-docx pymupdf pandas
+pip install -r requirements.txt
 ```
 
-For `semantic_similarity.py` only:
+`semantic_similarity.py` requires one additional package (downloads ~400 MB model on first run):
+
 ```bash
-pip install sentence-transformers --break-system-packages
+pip install sentence-transformers
+```
+
+`spreadsheet_to_sql.py` requires `psycopg2-binary` only for direct PostgreSQL writes:
+
+```bash
+pip install psycopg2-binary
 ```
 
 ---
@@ -324,7 +325,7 @@ python3 prompt_response_evaluator.py --prompt question.txt --response answer.txt
 ### 14. `semantic_similarity.py`
 Measures how well an AI output (translation or summary) preserves the *meaning* of its source document using sentence embeddings. Unlike keyword-based tools that count shared words, this script encodes every sentence into a vector and compares by cosine similarity — so semantically equivalent sentences score as near-identical even when they share no words.
 
-> **Requires:** `pip install sentence-transformers --break-system-packages`  
+> **Requires:** `pip install sentence-transformers`  
 > The model (`paraphrase-multilingual-MiniLM-L12-v2`) downloads ~400 MB on first run and is then cached locally. Handles Finnish/English pairs well.
 
 ```bash
@@ -414,8 +415,7 @@ python3 dashboard_builder.py semantic.csv tone.csv \
 ### 17. `spreadsheet_to_sql.py`
 Converts `.csv` and `.xlsx` spreadsheet files into SQL statements for database import. Generates `CREATE TABLE` and `INSERT` statements compatible with SQLite or PostgreSQL. Useful for loading test data, survey results, or AI evaluation datasets into a database for further analysis.
 
-> **Requires:** `pip install pandas openpyxl numpy --break-system-packages`  
-> `psycopg2-binary` is additionally required for direct PostgreSQL writes: `pip install psycopg2-binary --break-system-packages`
+> **Requires for direct PostgreSQL writes:** `pip install psycopg2-binary`
 
 ```bash
 # Generate a SQL file (SQLite dialect)
