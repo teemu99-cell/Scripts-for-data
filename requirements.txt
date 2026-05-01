@@ -1,0 +1,13 @@
+# Core — required for most scripts
+python-docx
+pymupdf
+pandas
+openpyxl
+numpy
+
+# semantic_similarity.py only
+# Downloads ~400 MB model on first run
+# sentence-transformers
+
+# spreadsheet_to_sql.py — PostgreSQL direct writes only
+# psycopg2-binary
